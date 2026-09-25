@@ -1,85 +1,89 @@
 import streamlit as st
 import pandas as pd
-import time
+import os
+from datetime import datetime
 
-# --- GİZLİLİK VE ŞİFRELEME ---
+# --- GÜVENLİK ---
 def check_password():
     def password_entered():
-        if st.session_state["password"] == "kanca2024": # BURASI SENİN GİZLİ ŞİFREN
+        if st.session_state["password"] == "kanca2024":
             st.session_state["password_correct"] = True
             del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
-
     if "password_correct" not in st.session_state:
         st.text_input("Kanca Koçluk - Gizli Giriş", type="password", on_change=password_entered, key="password")
-        st.info("Lütfen kurumsal erişim şifresini giriniz.")
         return False
-    elif not st.session_state["password_correct"]:
-        st.text_input("Hatalı Şifre! Tekrar Deneyin", type="password", on_change=password_entered, key="password")
-        return False
-    else:
-        return True
+    return st.session_state["password_correct"]
 
-# --- TASARIM AYARLARI ---
-st.set_page_config(page_title="Kanca Koçluk v1.0", page_icon="⚓", layout="wide")
+# --- VERİ YÖNETİMİ (HAFIZA SİSTEMİ) ---
+DATA_FILE = "kanca_veriler.csv"
+
+def save_data(new_entry):
+    if os.path.exists(DATA_FILE):
+        df = pd.read_csv(DATA_FILE)
+    else:
+        df = pd.DataFrame(columns=["Tarih", "Ogrenci", "Soru", "Mod"])
+    
+    # Yeni veriyi ekle (df.append yerine pd.concat kullanıyoruz yeni sürüm için)
+    new_df = pd.DataFrame([new_entry])
+    df = pd.concat([df, new_df], ignore_index=True)
+    df.to_csv(DATA_FILE, index=False)
+
+def load_data():
+    if os.path.exists(DATA_FILE):
+        return pd.read_csv(DATA_FILE)
+    return pd.DataFrame(columns=["Tarih", "Ogrenci", "Soru", "Mod"])
+
+# --- TASARIM ---
+st.set_page_config(page_title="Kanca Koçluk v1.1", layout="wide")
 
 if check_password():
-    # --- TASARIM DİLİ (CSS) ---
-    st.markdown("""
-        <style>
-        .main { background-color: #0A0E1A; color: white; }
-        .stButton>button { background-color: #FF4B2B; color: white; border-radius: 25px; width: 100%; border:none; height: 50px; font-weight: bold;}
-        .kanca-card { background-color: #16213E; padding: 25px; border-radius: 20px; border-left: 5px solid #FF4B2B; margin-bottom: 20px; }
-        .ai-box { background-color: #1B262C; border: 1px dashed #FF4B2B; padding: 15px; border-radius: 10px; color: #FFA500; }
-        </style>
-        """, unsafe_allow_html=True)
+    st.sidebar.title("⚓ KANCA v1.1")
+    menu = st.sidebar.radio("Menü", ["🚀 Öğrenci Paneli", "🧠 Koç Paneli", "🛡️ Veli Portalı"])
+    
+    all_data = load_data()
 
-    # --- SİSTEM MENÜSÜ ---
-    st.sidebar.title("⚓ KANCA v1.0")
-    menu = st.sidebar.radio("Menü", ["🚀 Şüheda (Öğrenci)", "🧠 Koç Paneli (Sen)", "🛡️ Veli Portalı"])
-
-    # --- 1. ÖĞRENCİ PANELİ ---
-    if menu == "🚀 Şüheda (Öğrenci)":
-        st.title("Günün Kancası: Hoş geldin Şüheda!")
+    if menu == "🚀 Öğrenci Paneli":
+        st.title("Hoş geldin Şüheda!")
+        st.info("Bugünkü kancanı atmaya hazır mısın?")
         
-        st.markdown("<div class='kanca-card'><h4>🎧 Koçundan Mesaj:</h4>'Bugün Matematik-1'deki o zorlandığın konuya beraber kanca atıyoruz. 20 soruyla başlayalım mı?'</div>", unsafe_allow_html=True)
-        
-        col1, col2 = st.columns([2,1])
-        with col1:
-            st.subheader("Günü Kancala")
-            soru = st.slider("Bugün kaç soru çözdün?", 0, 300, 50)
-            mod = st.select_slider("Şu anki enerjin?", ["Bunalmış", "Yorgun", "Normal", "Enerjik", "Zımba!"])
-            if st.button("HEDEFİ KANCALA"):
-                with st.spinner('Veriler AI ile analiz ediliyor ve koçuna iletiliyor...'):
-                    time.sleep(2)
+        with st.form("veri_formu"):
+            soru = st.number_input("Bugün kaç soru çözdün?", min_value=0, value=100)
+            mod = st.select_slider("Enerjin nasıl?", ["Bunalmış", "Yorgun", "Normal", "Enerjik", "Zımba!"])
+            submit = st.form_submit_button("HEDEFİ KANCALA")
+            
+            if submit:
+                entry = {
+                    "Tarih": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "Ogrenci": "Şüheda",
+                    "Soru": soru,
+                    "Mod": mod
+                }
+                save_data(entry)
                 st.balloons()
-                st.success("Başardın! Kanca yerine oturdu.")
-        
-        with col2:
-            st.subheader("Yol Haritan")
-            st.write("🎯 ODTÜ Bilgisayar")
-            st.progress(72)
-            st.info("Haftalık Hedef: %85 tamamlandı.")
+                st.success("Verin sisteme mühürlendi! Artık kalıcı.")
 
-    # --- 2. KOÇ PANELİ ---
-    elif menu == "🧠 Koç Paneli (Sen)":
-        st.title("Kanca Strateji Merkezi")
-        
-        col_a, col_b = st.columns([1, 2])
-        with col_a:
-            st.markdown("<div class='kanca-card'><b>Öğrenci:</b> Şüheda<br><b>Durum:</b> Takip Ediliyor</div>", unsafe_allow_html=True)
-            st.write("### 🤖 Kanca AI İçgörüsü")
-            st.markdown("<div class='ai-box'>Şüheda son 2 gündür 'Yorgun' girişi yaptı. Sayısal derslerdeki hızında %15 düşüş var. Yarınki programı esnetmenizi öneririm.</div>", unsafe_allow_html=True)
-        
-        with col_b:
-            st.subheader("Gelişim Grafiği")
-            chart_data = pd.DataFrame([120, 150, 80, 45, 130], columns=["Soru Sayısı"])
-            st.line_chart(chart_data)
-            st.write("📌 *Son 5 günlük soru çözüm istatistiği.*")
+    elif menu == "🧠 Koç Paneli":
+        st.title("Strateji Merkezi")
+        if not all_data.empty:
+            st.write("### Son Aktivite Geçmişi")
+            st.dataframe(all_data.tail(10)) # Son 10 kaydı göster
+            
+            st.write("### Gelişim Grafiği")
+            st.line_chart(all_data.set_index("Tarih")["Soru"])
+            
+            # Basit AI Analizi
+            son_mod = all_data.iloc[-1]["Mod"]
+            if son_mod in ["Bunalmış", "Yorgun"]:
+                st.warning("⚠️ AI NOTU: Öğrenci yorgun görünüyor. Programı hafifletmeyi düşünün.")
+        else:
+            st.info("Henüz kaydedilmiş veri yok. Öğrenci panelinden ilk girişi yapın.")
 
-    # --- 3. VELİ PORTALI ---
     elif menu == "🛡️ Veli Portalı":
-        st.title("Veli Huzur Paneli")
-        st.markdown("<div class='kanca-card'><h3>Her Şey Kontrol Altında</h3>Şüheda bu hafta disiplinini %20 artırdı. Koç görüşmesi olumlu geçti.</div>", unsafe_allow_html=True)
-        st.columns(3)[0].metric("Haftalık Başarı", "%88", "+5%")
+        st.title("Veli Paneli")
+        if not all_data.empty:
+            toplam_soru = all_data["Soru"].sum()
+            st.metric("Toplam Çözülen Soru", toplam_soru)
+            st.write("Süreç koç kontrolünde ilerliyor.")
+        
