@@ -27,14 +27,10 @@ if not os.path.exists(UPLOAD_DIR):
     except: pass
 
 def save_entry(entry, filename):
-    if os.path.exists(filename):
-        df = pd.read_csv(filename)
-    else:
-        df = pd.DataFrame()
+    df = pd.read_csv(filename) if os.path.exists(filename) else pd.DataFrame()
     df = pd.concat([df, pd.DataFrame([entry])], ignore_index=True)
     df.to_csv(filename, index=False)
 
-# --- LİG VE PUAN HESAPLAMA ---
 def get_rank(points):
     if points < 500: return "⚓ Demir Atan"
     if points < 1500: return "🪝 Kancayı Takan"
@@ -43,10 +39,10 @@ def get_rank(points):
     return "🔥 Kanca Efsanesi"
 
 # --- TASARIM ---
-st.set_page_config(page_title="Kanca Koçluk v1.4", layout="wide")
+st.set_page_config(page_title="Kanca Koçluk v1.5", layout="wide")
 
 if check_password():
-    st.sidebar.title("⚓ KANCA v1.4")
+    st.sidebar.title("⚓ KANCA v1.5")
     menu = st.sidebar.radio("Menü", ["🚀 Öğrenci Paneli", "📦 Kanca Kasası", "🏆 Kanca Ligi", "🧠 Koç Paneli"])
 
     # --- 1. ÖĞRENCİ PANELİ ---
@@ -55,7 +51,7 @@ if check_password():
         
         if os.path.exists(COACH_NOTE_FILE):
             with open(COACH_NOTE_FILE, "r", encoding="utf-8") as f: koc_notu = f.read()
-            st.info(f"🎧 Koçunun Mesajı: {koc_notu}")
+            st.success(f"🎧 Koçunun Mesajı: {koc_notu}")
 
         tab1, tab2 = st.tabs(["📊 Günlük Takip", "📸 Hata Yükle"])
         with tab1:
@@ -66,16 +62,9 @@ if check_password():
                 if st.form_submit_button("HEDEFİ KANCALA"):
                     puan = soru + (saat * 10)
                     if mod in ["Yorgun", "Bunalmış"]: puan += 50
-                    
-                    save_entry({
-                        "Tarih": datetime.now().strftime("%Y-%m-%d %H:%M"), 
-                        "Soru": soru, 
-                        "Saat": saat,
-                        "Mod": mod,
-                        "Puan": puan
-                    }, DATA_FILE)
+                    save_entry({"Tarih": datetime.now().strftime("%Y-%m-%d %H:%M"), "Soru": soru, "Saat": saat, "Mod": mod, "Puan": puan}, DATA_FILE)
                     st.balloons()
-                    st.success(f"Tebrikler! Bugün {int(puan)} Kanca Puanı kazandın.")
+                    st.success(f"Tebrikler! {int(puan)} KP kazandın.")
 
         with tab2:
             uploaded_file = st.file_uploader("Soru Fotoğrafı Seç", type=['png', 'jpg', 'jpeg'])
@@ -95,8 +84,7 @@ if check_password():
             kasa_df = pd.read_csv(VAULT_FILE)
             for index, row in kasa_df.iterrows():
                 with st.expander(f"{row['Tarih']} - {row['Ders']} ({row['Durum']})"):
-                    if os.path.exists(str(row['Dosya'])):
-                        st.image(str(row['Dosya']), use_container_width=True)
+                    if os.path.exists(str(row['Dosya'])): st.image(str(row['Dosya']), use_container_width=True)
                     if row['Durum'] == "Çözülmedi":
                         if st.button("Çözüldü İşaretle", key=f"kasa_{index}"):
                             kasa_df.at[index, 'Durum'] = "Çözüldü"
@@ -110,33 +98,54 @@ if check_password():
         suheda_points = 0
         if os.path.exists(DATA_FILE):
             df = pd.read_csv(DATA_FILE)
-            if "Puan" in df.columns:
-                suheda_points = df["Puan"].sum()
+            if "Puan" in df.columns: suheda_points = df["Puan"].sum()
         
         lig_data = pd.DataFrame([
             {"Öğrenci": "🚀 ParagrafAvcısı", "Puan": 4200, "Rütbe": get_rank(4200)},
             {"Öğrenci": "🧪 KimyaBükücü", "Puan": 3850, "Rütbe": get_rank(3850)},
             {"Öğrenci": "⚓ Şüheda (Sen)", "Puan": suheda_points, "Rütbe": get_rank(suheda_points)},
-            {"Öğrenci": "📐 GeoMaster", "Puan": 1200, "Rütbe": get_rank(1200)},
-            {"Öğrenci": "⚡ VoltMetre", "Puan": 450, "Rütbe": get_rank(450)}
+            {"Öğrenci": "📐 GeoMaster", "Puan": 1200, "Rütbe": get_rank(1200)}
         ]).sort_values(by="Puan", ascending=False).reset_index(drop=True)
-        
         st.table(lig_data)
-        st.metric("Senin Toplam Puanın", f"{int(suheda_points)} KP", get_rank(suheda_points))
 
-    # --- 4. KOÇ PANELİ ---
+    # --- 4. KOÇ PANELİ (AI ANALİZLİ) ---
     elif menu == "🧠 Koç Paneli":
-        st.title("Strateji Merkezi")
-        st.subheader("✍️ Şüheda'ya Mesaj Gönder")
+        st.title("🧠 Strateji ve Analiz Merkezi")
+        
+        if os.path.exists(DATA_FILE):
+            df_koc = pd.read_csv(DATA_FILE)
+            
+            # --- KANCA AI ANALİZ MOTORU ---
+            st.subheader("🤖 Kanca AI İçgörüsü")
+            son_kayit = df_koc.iloc[-1]
+            if son_kayit['Mod'] in ["Yorgun", "Bunalmış", "Kaygılı"]:
+                st.warning(f"⚠️ DİKKAT: Şüheda son girişinde kendini '{son_kayit['Mod']}' olarak işaretledi. Bugün akademik yükü %20 azaltıp motivasyon odaklı bir görüşme yapmanızı öneririm.")
+            elif son_kayit['Soru'] > 150:
+                st.info("🌟 BAŞARI: Şüheda bugün kapasitesinin üzerine çıktı. Bu ivmeyi korumak için küçük bir takdir mesajı etkili olacaktır.")
+            else:
+                st.success("✅ DURUM: Her şey yolunda. Şüheda istikrarlı bir şekilde ilerliyor.")
+
+            # --- VERİ GÖRSELLEŞTİRME ---
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write("### Soru Gelişimi")
+                st.line_chart(df_koc.set_index("Tarih")["Soru"])
+            with col2:
+                st.write("### Odaklanma (Saat)")
+                st.bar_chart(df_koc.set_index("Tarih")["Saat"])
+            
+            # --- VELİ RAPOR ASİSTANI ---
+            st.subheader("📊 Veli Rapor Asistanı")
+            toplam_soru = df_koc["Soru"].sum()
+            ortalama_mod = df_koc["Mod"].mode()[0]
+            rapor_metni = f"Sayın Veli, Şüheda bu hafta toplam {toplam_soru} soru çözdü. Genel ruh hali '{ortalama_mod}' olarak gözlemlendi. Koçluk süreci planlandığı gibi devam ediyor."
+            st.text_area("WhatsApp için kopyala:", value=rapor_metni)
+
+        st.subheader("✍️ Şüheda'ya Mesaj")
         mevcut_not = ""
         if os.path.exists(COACH_NOTE_FILE):
             with open(COACH_NOTE_FILE, "r", encoding="utf-8") as f: mevcut_not = f.read()
-        yeni_not = st.text_area("Öğrenci ekranında görünecek not:", value=mevcut_not)
+        yeni_not = st.text_area("Öğrenci ekranı notu:", value=mevcut_not)
         if st.button("Notu Güncelle"):
             with open(COACH_NOTE_FILE, "w", encoding="utf-8") as f: f.write(yeni_not)
-            st.success("Not güncellendi!")
-        
-        if os.path.exists(DATA_FILE):
-            st.write("### Gelişim Grafiği")
-            df_koc = pd.read_csv(DATA_FILE)
-            st.line_chart(df_koc.set_index("Tarih")["Soru"])
+            st.rerun()
