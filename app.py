@@ -20,7 +20,7 @@ def check_password():
 # --- VERİ YÖNETİMİ ---
 DATA_FILE = "kanca_veriler.csv"
 VAULT_FILE = "kanca_kasa.csv"
-DENEME_FILE = "kanca_denemeler.csv" # Yeni Dosya
+DENEME_FILE = "kanca_denemeler.csv"
 COACH_NOTE_FILE = "koc_notu.txt"
 UPLOAD_DIR = "uploads"
 
@@ -41,11 +41,11 @@ def get_rank(points):
     return "🔥 Kanca Efsanesi"
 
 # --- TASARIM ---
-st.set_page_config(page_title="Kanca Koçluk v1.7", layout="wide")
+st.set_page_config(page_title="Kanca Koçluk v1.8", layout="wide")
 
 if check_password():
-    st.sidebar.title("⚓ KANCA v1.7")
-    menu = st.sidebar.radio("Menü", ["🚀 Öğrenci Paneli", "📦 Kanca Kasası", "📝 Deneme Takibi", "🏆 Kanca Ligi", "🧠 Koç Paneli"])
+    st.sidebar.title("⚓ KANCA v1.8")
+    menu = st.sidebar.radio("Menü", ["🚀 Öğrenci Paneli", "📦 Kanca Kasası", "📝 Deneme Analizi", "🏆 Kanca Ligi", "🧠 Koç Paneli"])
 
     # --- 1. ÖĞRENCİ PANELİ ---
     if menu == "🚀 Öğrenci Paneli":
@@ -65,7 +65,6 @@ if check_password():
                     if mod in ["Yorgun", "Bunalmış", "Kaygılı"]: puan += 50
                     save_entry({"Tarih": datetime.now().strftime("%Y-%m-%d %H:%M"), "Soru": soru, "Saat": saat, "Mod": mod, "Puan": puan}, DATA_FILE)
                     st.balloons(); st.success(f"Tebrikler! {int(puan)} KP kazandın.")
-
         with tab2:
             st.subheader("Hata Teşhis ve Yükleme")
             uploaded_file = st.file_uploader("Soru Fotoğrafı Seç", type=['png', 'jpg', 'jpeg'])
@@ -95,22 +94,34 @@ if check_password():
                             st.rerun()
         else: st.info("Kasa boş.")
 
-    # --- 3. DENEME TAKİBİ (YENİ) ---
-    elif menu == "📝 Deneme Takibi":
-        st.title("📝 Deneme Sınavı Sonuçları")
-        with st.form("deneme_form"):
-            col1, col2, col3 = st.columns(3)
-            sinav_ad = col1.text_input("Sınav Adı (Örn: TYT Altın Karma)")
-            dogru = col2.number_input("Toplam Doğru", min_value=0, value=80)
-            yanlis = col3.number_input("Toplam Yanlış", min_value=0, value=20)
-            net = dogru - (yanlis * 0.25)
-            if st.form_submit_button("SINAVI KAYDET"):
-                save_entry({"Tarih": datetime.now().strftime("%Y-%m-%d"), "Sınav": sinav_ad, "Net": net}, DENEME_FILE)
-                st.success(f"{net} Net ile sınav kaydedildi!")
+    # --- 3. DENEME ANALİZİ (GELİŞMİŞ) ---
+    elif menu == "📝 Deneme Analizi":
+        st.title("📝 Detaylı Deneme Analizör")
+        st.info("Sınavdaki branş performansını buraya gir. Kanca AI bunu çalışma verilerinle eşleştirecek.")
+        
+        with st.form("detayli_deneme"):
+            sinav_ad = st.text_input("Sınav Adı (Örn: TYT Kurumsal-1)")
+            col1, col2, col3, col4 = st.columns(4)
+            ders_sec = col1.selectbox("Ders", ["Matematik", "Türkçe", "Fizik", "Kimya", "Biyoloji", "Tarih", "Coğrafya"])
+            d = col2.number_input("Doğru", min_value=0, value=0)
+            y = col3.number_input("Yanlış", min_value=0, value=0)
+            kritik_konu = col4.text_input("En Çok Soru Kaçan Konu?")
+            
+            if st.form_submit_button("DERSE AİT NETİ EKLE"):
+                net = d - (y * 0.25)
+                save_entry({
+                    "Tarih": datetime.now().strftime("%Y-%m-%d"), 
+                    "Sınav": sinav_ad, 
+                    "Ders": ders_sec, 
+                    "Net": net,
+                    "Eksik_Konu": kritik_konu
+                }, DENEME_FILE)
+                st.success(f"{ders_sec} verisi eklendi. Sınavdaki diğer dersleri de ekleyebilirsin.")
         
         if os.path.exists(DENEME_FILE):
-            st.write("### Geçmiş Denemeler")
-            st.dataframe(pd.read_csv(DENEME_FILE))
+            df_deneme = pd.read_csv(DENEME_FILE)
+            st.write("### Son Girilen Performanslar")
+            st.dataframe(df_deneme.tail(10))
 
     # --- 4. KANCA LİGİ ---
     elif menu == "🏆 Kanca Ligi":
@@ -123,31 +134,28 @@ if check_password():
         ]).sort_values(by="Puan", ascending=False).reset_index(drop=True)
         st.table(lig_data)
 
-    # --- 5. KOÇ PANELİ ---
+    # --- 5. KOÇ PANELİ (BRANŞ BAZLI ANALİZ) ---
     elif menu == "🧠 Koç Paneli":
         st.title("🧠 Stratejik Analiz Odası")
         if os.path.exists(DATA_FILE):
-            # AI NOTU
-            st.subheader("🤖 Kanca AI Strateji Notu")
+            st.subheader("🤖 Kanca AI Branş Analizi")
             if os.path.exists(DENEME_FILE):
-                deneme_df = pd.read_csv(DENEME_FILE)
-                if len(deneme_df) > 1:
-                    fark = deneme_df.iloc[-1]["Net"] - deneme_df.iloc[-2]["Net"]
-                    if fark > 0: st.success(f"📈 OLUMLU: Şüheda son denemede netini {fark} artırdı. Çalışma programı sonuç veriyor!")
-                    else: st.warning(f"📉 UYARI: Netlerde {fark} düşüş var. Hata Kasası'ndaki konuları gözden geçirin.")
+                df_d = pd.read_csv(DENEME_FILE)
+                # En son eklenen dersin analizi
+                son_analiz = df_d.iloc[-1]
+                if son_analiz['Net'] < 5:
+                    st.error(f"🚨 KRİTİK: {son_analiz['Ders']} dersinde '{son_analiz['Eksik_Konu']}' konusu alarm veriyor. Acil tekrar planlanmalı.")
+                else:
+                    st.info(f"💡 ÖNERİ: {son_analiz['Ders']} dersindeki istikrar iyi. '{son_analiz['Eksik_Konu']}' üzerine 50 soru ekleyerek kancayı sıkılayalım.")
+
+            # BRANŞ BAZLI NET GRAFİĞİ
+            if os.path.exists(DENEME_FILE):
+                st.write("### Branş Bazlı Başarı Grafiği")
+                fig_brans = px.bar(pd.read_csv(DENEME_FILE), x="Ders", y="Net", color="Ders", barmode="group", title="Derslere Göre Son Durum")
+                st.plotly_chart(fig_brans)
             
-            # GRAFİKLER
-            c1, c2 = st.columns(2)
+            # HATA KARAKTERİ
             if os.path.exists(VAULT_FILE):
-                c1.write("### Hata Karakteri")
-                fig = px.pie(pd.read_csv(VAULT_FILE), names='Neden', hole=0.4)
-                c1.plotly_chart(fig)
-            
-            if os.path.exists(DENEME_FILE):
-                c2.write("### Net Gelişimi")
-                c2.line_chart(pd.read_csv(DENEME_FILE).set_index("Tarih")["Net"])
-            
-            st.write("### Soru Gelişimi")
-            st.line_chart(pd.read_csv(DATA_FILE).set_index("Tarih")["Soru"])
-        
-        st.text_area("Şüheda'ya Mesaj:", key="coach_msg")
+                st.write("### Hata Nedenleri")
+                fig_pie = px.pie(pd.read_csv(VAULT_FILE), names='Neden', hole=0.4)
+                st.plotly_chart(fig_pie)
